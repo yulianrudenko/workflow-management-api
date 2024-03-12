@@ -1,8 +1,8 @@
 """init
 
-Revision ID: e011674184f0
+Revision ID: 9c6bbbe42627
 Revises: 
-Create Date: 2024-03-10 14:59:24.736381
+Create Date: 2024-03-12 14:16:25.747908
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'e011674184f0'
+revision: str = '9c6bbbe42627'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -23,6 +23,7 @@ def upgrade() -> None:
     op.create_table('workflow',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=50), nullable=True),
+    sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_workflow_id'), 'workflow', ['id'], unique=False)
@@ -37,8 +38,12 @@ def upgrade() -> None:
     op.create_table('condition',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('node_id', sa.Integer(), nullable=False),
+    sa.Column('yes_node_id', sa.Integer(), nullable=False),
+    sa.Column('no_node_id', sa.Integer(), nullable=False),
     sa.Column('expression', sa.String(length=100), nullable=False),
+    sa.ForeignKeyConstraint(['no_node_id'], ['node.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['node_id'], ['node.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['yes_node_id'], ['node.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_condition_id'), 'condition', ['id'], unique=False)
@@ -56,7 +61,7 @@ def upgrade() -> None:
     op.create_table('message',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('node_id', sa.Integer(), nullable=False),
-    sa.Column('status', sa.Enum('pending', 'sent', 'opened', name='conditionstatusenum'), nullable=False),
+    sa.Column('status', sa.Enum('pending', 'sent', 'opened', name='messagestatusenum'), nullable=False),
     sa.Column('text', sa.String(length=100), nullable=True),
     sa.ForeignKeyConstraint(['node_id'], ['node.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')

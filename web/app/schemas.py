@@ -1,10 +1,49 @@
 from pydantic import BaseModel, field_validator
+from datetime import datetime
+
+from . import models
 
 ALLOWED_MESSAGE_STATUS = ["pending", "sent", "opened"]
 
 
-class StartNode(BaseModel):
-    next_node_id: int
+class BaseWorkflow(BaseModel):
+    name: str
+
+
+class WorkflowIn(BaseWorkflow):
+    pass
+
+
+class WorkflowOut(BaseWorkflow):
+    id: int
+    created_at: datetime
+
+
+class BaseNode(BaseModel):
+    class NodeData(BaseModel):
+        """
+        Represents additional parameters for specific node types (e.g. Condition and Message)
+        """
+        expression: str | None
+        yes_node_id: int | None
+        no_node_id: int | None
+        status: models.Message.MessageStatusEnum | None
+    type: models.Node.NodeTypeEnum
+
+
+class NodeInCreate(BaseNode):
+    workflow_id: int
+    data: BaseNode.NodeData | None = None
+
+
+class NodeInUpdate(BaseNode):
+    data: BaseNode.NodeData | None = None
+
+
+class NodeOut(BaseNode):
+    id: int
+    workflow_id: int
+    data: BaseNode.NodeData | None = None
 
 
 class MessageNode(BaseModel):
