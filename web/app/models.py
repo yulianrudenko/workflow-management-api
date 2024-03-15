@@ -42,9 +42,7 @@ class Node(Base):
     workflow: Mapped[Workflow] = relationship(back_populates="nodes")
     source_edges: Mapped[list["Edge"]] = relationship(back_populates="source_node", foreign_keys="Edge.source_node_id")
     target_edges: Mapped[list["Edge"]] = relationship(back_populates="target_node", foreign_keys="Edge.target_node_id")
-    condition: Mapped["Condition"] = relationship(back_populates="node")
-    yes_condition: Mapped["Condition"] = relationship(back_populates="yes_node")
-    no_condition: Mapped["Condition"] = relationship(back_populates="no_node")
+    condition: Mapped["Condition"] = relationship(back_populates="node", foreign_keys="Condition.node_id")
     message: Mapped["Message"] = relationship(back_populates="node")
 
 
@@ -56,25 +54,13 @@ class Edge(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    source_node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"), nullable=False)
-    target_node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"), nullable=False)
+    source_node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"))
+    target_node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"))
 
     source_node: Mapped["Node"] = relationship(back_populates="source_edges", foreign_keys=[source_node_id])
     target_node: Mapped["Node"] = relationship(back_populates="target_edges", foreign_keys=[target_node_id])
-
-
-class Condition(Base):
-    __tablename__ = "condition"
-
-    id = Column(Integer, primary_key=True, index=True)
-    node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"), nullable=False)
-    yes_node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"), nullable=False)
-    no_node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"), nullable=False)
-    expression = Column(String(length=100), nullable=False)
-
-    node: Mapped["Node"] = relationship(back_populates="condition")
-    yes_node: Mapped["Node"] = relationship(back_populates="yes_condition")
-    no_node: Mapped["Node"] = relationship(back_populates="no_condition")
+    yes_condition: Mapped["Condition"] = relationship(back_populates="yes_edge", foreign_keys="Condition.yes_edge_id")
+    no_condition: Mapped["Condition"] = relationship(back_populates="no_edge", foreign_keys="Condition.no_edge_id")
 
 
 class Message(Base):
@@ -85,9 +71,22 @@ class Message(Base):
         sent = "sent"
         opened = "opened"
 
-    id = Column(Integer, primary_key=True, index=True)
-    node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"), nullable=False)
+    node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"), primary_key=True, nullable=False)
     status = Column(Enum(MessageStatusEnum), nullable=False)
     text = Column(String(length=100))
 
     node: Mapped["Node"] = relationship(back_populates="message")
+
+
+class Condition(Base):
+    __tablename__ = "condition"
+
+    node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"), primary_key=True, nullable=False)
+    expression = Column(String(length=100), nullable=False)
+    yes_edge_id: Mapped[int] = mapped_column(ForeignKey("edge.id", ondelete="CASCADE"), nullable=True)
+    no_edge_id: Mapped[int] = mapped_column(ForeignKey("edge.id", ondelete="CASCADE"), nullable=True)
+
+    node: Mapped["Node"] = relationship(back_populates="condition", foreign_keys=[node_id])
+    yes_edge: Mapped["Edge"] = relationship(back_populates="yes_condition", foreign_keys=[yes_edge_id])
+    no_edge: Mapped["Edge"] = relationship(back_populates="no_condition", foreign_keys=[no_edge_id])
+

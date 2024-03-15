@@ -1,9 +1,8 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional
 
 from . import models
-
-ALLOWED_MESSAGE_STATUS = ["pending", "sent", "opened"]
 
 
 class BaseWorkflow(BaseModel):
@@ -24,10 +23,11 @@ class BaseNode(BaseModel):
         """
         Represents additional parameters for specific node types (e.g. Condition and Message)
         """
-        expression: str | None
-        yes_node_id: int | None
-        no_node_id: int | None
-        status: models.Message.MessageStatusEnum | None
+        # Message
+        status: Optional[models.Message.MessageStatusEnum] = None
+        text: Optional[str] = None
+        # Condition
+        expression: Optional[str] = None
     type: models.Node.NodeTypeEnum
 
 
@@ -46,27 +46,14 @@ class NodeOut(BaseNode):
     data: BaseNode.NodeData | None = None
 
 
-class MessageNode(BaseModel):
-    previous_nodes_id: list[int]
-    next_node_id: int
-    status: str
-    text: str
-
-    @field_validator("status")
-    @classmethod
-    def check_status(cls, v: str) -> str:
-        if v not in ALLOWED_MESSAGE_STATUS:
-            raise ValueError("Status is not allowed")
-        return v
+class BaseEdge(BaseModel):
+    source_node_id: int
+    target_node_id: int
 
 
-class ConditionNode(BaseModel):
-    condition: str
-    yes_node_id: int
-    no_node_id: int
-    previous_nodes_id: list[int]
-    next_nodes_id: list[int]
+class EdgeIn(BaseEdge):
+    is_yes_condition: Optional[bool] = None
 
 
-class EndNode(BaseModel):
-    previous_nodes_id: list[int]
+class EdgeOut(BaseEdge):
+    id: int
