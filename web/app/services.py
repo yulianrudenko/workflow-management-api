@@ -17,15 +17,15 @@ def run_workflow(workflow_obj: models.Workflow, db: Session) -> None:
     """
     G = nx.DiGraph()
 
-    start_node: models.Node = db.query(models.Node).filter(models.Node.type == models.Node.NodeTypeEnum.start).first()
+    nodes = db.query(models.Node).filter(models.Node.workflow_id == workflow_obj.id)
+    start_node: models.Node = nodes.filter(models.Node.type == models.Node.NodeTypeEnum.start).first()
     if start_node is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Workflow has no Start Node")
 
-    end_node: models.Node = db.query(models.Node).filter(models.Node.type == models.Node.NodeTypeEnum.end).first()
+    end_node: models.Node = nodes.filter(models.Node.type == models.Node.NodeTypeEnum.end).first()
     if end_node is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Workflow has no End Node")
 
-    nodes: list[models.Node] = workflow_obj.nodes
     nodes_ids = [node.id for node in nodes]
     edges = db.query(models.Edge).filter(
         or_(
@@ -54,8 +54,10 @@ def run_workflow(workflow_obj: models.Workflow, db: Session) -> None:
         G.add_edge(edge.source_node_id, edge.target_node_id)
 
     try:
+        print(start_node.id, end_node.id)
         nodes_path = utils.find_path(G, start_node_id=start_node.id, end_node_id=end_node.id)
     except Exception as err:
+        raise err
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
 
     return nodes_path
@@ -204,11 +206,23 @@ def create_edge(edge: schemas.EdgeIn, db: Session) -> models.Edge:
         if edge.is_yes_condition is False:
             source_node.condition.no_edge = edge_obj
         elif edge.is_yes_condition is True:
-            print(source_node.id)
             source_node.condition.yes_edge = edge_obj
         else:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Field 'is_yes_condition' required for this Edge")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Field 'is_yes_condition' required for this Edge"
+            )
 
     db.commit()
     db.refresh(edge_obj)
     return edge_obj
+
+
+def delete_edge(edge: schemas.EdgeIn, db: Session) -> models.Edge:
+    """
+    Deletes edge between 2 Nodes.
+
+    Validates if workflow exists and if edge can link given nodes based on nodes parameters.
+    """
+    if edge.source_node_id == edge.target_node_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nodes must be 2 different values")

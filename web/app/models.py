@@ -84,8 +84,8 @@ class Condition(Base):
 
     node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"), primary_key=True, nullable=False)
     expression = Column(String(length=100), nullable=False)
-    yes_edge_id: Mapped[int] = mapped_column(ForeignKey("edge.id", ondelete="CASCADE"), nullable=True)
-    no_edge_id: Mapped[int] = mapped_column(ForeignKey("edge.id", ondelete="CASCADE"), nullable=True)
+    yes_edge_id: Mapped[int] = mapped_column(ForeignKey("edge.id", ondelete="SET NULL"), nullable=True)
+    no_edge_id: Mapped[int] = mapped_column(ForeignKey("edge.id", ondelete="SET NULL"), nullable=True)
 
     node: Mapped["Node"] = relationship(back_populates="condition", foreign_keys=[node_id])
     yes_edge: Mapped["Edge"] = relationship(back_populates="yes_condition", foreign_keys=[yes_edge_id])

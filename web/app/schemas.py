@@ -5,19 +5,6 @@ from typing import Optional
 from . import models
 
 
-class BaseWorkflow(BaseModel):
-    name: str
-
-
-class WorkflowIn(BaseWorkflow):
-    pass
-
-
-class WorkflowOut(BaseWorkflow):
-    id: int
-    created_at: datetime
-
-
 class BaseNode(BaseModel):
     # Parameters for specific node types (e.g. Message and Condition)
     # Message
@@ -57,6 +44,21 @@ class EdgeIn(BaseEdge):
 
 class EdgeOut(BaseEdge):
     id: int
+
+
+class BaseWorkflow(BaseModel):
+    name: str
+
+
+class WorkflowIn(BaseWorkflow):
+    pass
+
+
+class WorkflowOut(BaseWorkflow):
+    id: int
+    nodes: list[NodeOut] = []
+    edges: list[EdgeOut] = []
+    created_at: datetime
 
 
 class WorkflowRunOut(WorkflowOut):
