@@ -1,27 +1,64 @@
+import networkx as nx
+
 from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from . import models
 from . import schemas
+from . import utils
+from .selectors import get_object_or_404
 
 
-def get_object_or_404(Model: models.Base, object_id: int, db: Session) -> models.Base:
+
+def run_workflow(workflow_obj: models.Workflow, db: Session) -> None:
     """
-    Gets an object by ID or raises a 404 if not found.
-
-    Args:
-        model: Type of object that needs to be retrieved from database.
-        object_id: ID of the object to retrieve.
-        db: Database session.
-
-    Returns:
-        The retrieved object if found, otherwise raises a 404 exception.
+    Convert Workflow database data to DiGraph and find shortest path
     """
-    obj = db.query(Model).filter(Model.id == object_id).first()
-    if not obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{Model.__name__} not found")
-    return obj
+    G = nx.DiGraph()
+
+    start_node: models.Node = db.query(models.Node).filter(models.Node.type == models.Node.NodeTypeEnum.start).first()
+    if start_node is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Workflow has no Start Node")
+
+    end_node: models.Node = db.query(models.Node).filter(models.Node.type == models.Node.NodeTypeEnum.end).first()
+    if end_node is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Workflow has no End Node")
+
+    nodes: list[models.Node] = workflow_obj.nodes
+    nodes_ids = [node.id for node in nodes]
+    edges = db.query(models.Edge).filter(
+        or_(
+            models.Edge.source_node_id.in_(nodes_ids),
+            models.Edge.target_node_id.in_(nodes_ids)
+        )
+    ).order_by(models.Edge.created_at)
+
+    # Add Nodes to graph with additional data
+    for node in nodes:
+        node_data = {}
+        node_data["id"] = node.id
+        node_type = node.type
+        node_data["type"] = node_type
+        if node_type == models.Node.NodeTypeEnum.message:
+            node_data["status"] = node.message.status
+            node_data["text"] = node.message.text
+        if node_type == models.Node.NodeTypeEnum.condition:
+            node_data["expression"] = node.condition.expression
+            node_data["yes_node_id"] = getattr(node.condition.yes_edge, "target_node_id", None)
+            node_data["no_node_id"] = getattr(node.condition.no_edge, "target_node_id", None)
+        G.add_node(node.id, **node_data)
+
+    # Add Edges to graph
+    for edge in edges:
+        G.add_edge(edge.source_node_id, edge.target_node_id)
+
+    try:
+        nodes_path = utils.find_path(G, start_node_id=start_node.id, end_node_id=end_node.id)
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+
+    return nodes_path
 
 
 def create_node(node: schemas.NodeInCreate, db: Session) -> models.Node:
@@ -35,28 +72,62 @@ def create_node(node: schemas.NodeInCreate, db: Session) -> models.Node:
     get_object_or_404(models.Workflow, object_id=node.workflow_id, db=db)
 
     # Create Node
-    node_data = node.model_dump()
-    node_data.pop("data", {})  # Clear unnecessary data
-    node_obj = models.Node(**node_data)
+    node_obj = models.Node(workflow_id=node.workflow_id, type=node.type)
     db.add(node_obj)
 
     # Additional database logic depending on provided Node type
+    if node.type in [models.Node.NodeTypeEnum.start, models.Node.NodeTypeEnum.end]:
+        if db.query(models.Node).filter(models.Node.type == node.type).first():
+            raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Only one {node.type.name.title()} Node allowed in single workflow."
+                )
     if node.type == models.Node.NodeTypeEnum.message:
-        if not node.data.status or not node.data.text:
+        if not node.status or not node.text:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Status and text required for Message Node"
             )
-        message_obj = models.Message(node=node_obj, status=node.data.status, text=node.data.text)
+        message_obj = models.Message(node=node_obj, status=node.status, text=node.text)
         db.add(message_obj)
+        node_obj.data = {"text": message_obj.text, "status": message_obj.status}
     elif node.type == models.Node.NodeTypeEnum.condition:
-        if not node.data.expression:
+        if not node.expression:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Expression required for Condition Node"
             )
-        condition_obj = models.Condition(node=node_obj, expression=node.data.expression)
+        condition_obj = models.Condition(node=node_obj, expression=node.expression)
         db.add(condition_obj)
+        node_obj.data = {"expression": condition_obj.expression}
+
+    db.commit()
+    db.refresh(node_obj)
+    return node_obj
+
+
+def update_node(node_id: int, node_data: schemas.NodeInUpdate, db: Session) -> models.Node:
+    """
+    Updates node based on provided data.
+
+    Validates if node exists and provided data to be updated matches the Node type.
+    """
+
+    # Check if Node exists
+    node_obj: models.Node = get_object_or_404(models.Node, object_id=node_id, db=db)
+
+    # Perform update
+    if node_obj.type == models.Node.NodeTypeEnum.condition:
+        if node_data.expression:
+            node_obj.condition.expression = node_data.expression
+        node_obj.expression = node_obj.condition.expression
+    elif node_obj.type == models.Node.NodeTypeEnum.message:
+        if node_data.status:
+            node_obj.message.status = node_data.status
+        if node_data.text:
+            node_obj.message.text = node_data.text
+        node_obj.status = node_obj.message.status
+        node_obj.text = node_obj.message.text
 
     db.commit()
     db.refresh(node_obj)
@@ -133,6 +204,7 @@ def create_edge(edge: schemas.EdgeIn, db: Session) -> models.Edge:
         if edge.is_yes_condition is False:
             source_node.condition.no_edge = edge_obj
         elif edge.is_yes_condition is True:
+            print(source_node.id)
             source_node.condition.yes_edge = edge_obj
         else:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Field 'is_yes_condition' required for this Edge")

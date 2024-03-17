@@ -19,31 +19,31 @@ class WorkflowOut(BaseWorkflow):
 
 
 class BaseNode(BaseModel):
-    class NodeData(BaseModel):
-        """
-        Represents additional parameters for specific node types (e.g. Condition and Message)
-        """
-        # Message
-        status: Optional[models.Message.MessageStatusEnum] = None
-        text: Optional[str] = None
-        # Condition
-        expression: Optional[str] = None
-    type: models.Node.NodeTypeEnum
+    # Parameters for specific node types (e.g. Message and Condition)
+    # Message
+    status: Optional[models.Message.MessageStatusEnum] = None
+    text: Optional[str] = None
+    # Condition
+    expression: Optional[str] = None
 
 
 class NodeInCreate(BaseNode):
     workflow_id: int
-    data: BaseNode.NodeData | None = None
+    type: models.Node.NodeTypeEnum
 
 
 class NodeInUpdate(BaseNode):
-    data: BaseNode.NodeData | None = None
+    pass
 
 
 class NodeOut(BaseNode):
     id: int
+    type: models.Node.NodeTypeEnum
+
+
+class Graph(BaseModel):
     workflow_id: int
-    data: BaseNode.NodeData | None = None
+    nodes: list[NodeOut]
 
 
 class BaseEdge(BaseModel):
@@ -57,3 +57,7 @@ class EdgeIn(BaseEdge):
 
 class EdgeOut(BaseEdge):
     id: int
+
+
+class WorkflowRunOut(WorkflowOut):
+    nodes: list[NodeOut]

@@ -56,6 +56,7 @@ class Edge(Base):
     id = Column(Integer, primary_key=True, index=True)
     source_node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"))
     target_node_id: Mapped[int] = mapped_column(ForeignKey("node.id", ondelete="CASCADE"))
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
     source_node: Mapped["Node"] = relationship(back_populates="source_edges", foreign_keys=[source_node_id])
     target_node: Mapped["Node"] = relationship(back_populates="target_edges", foreign_keys=[target_node_id])
@@ -89,4 +90,3 @@ class Condition(Base):
     node: Mapped["Node"] = relationship(back_populates="condition", foreign_keys=[node_id])
     yes_edge: Mapped["Edge"] = relationship(back_populates="yes_condition", foreign_keys=[yes_edge_id])
     no_edge: Mapped["Edge"] = relationship(back_populates="no_condition", foreign_keys=[no_edge_id])
-
