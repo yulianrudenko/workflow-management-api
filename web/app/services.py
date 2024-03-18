@@ -13,7 +13,7 @@ from .selectors import get_object_or_404
 
 def run_workflow(workflow_obj: models.Workflow, db: Session) -> None:
     """
-    Convert Workflow database data to DiGraph and find shortest path
+    Converts data from DB into DiGraph and try finding path from start to end Node
     """
     G = nx.DiGraph()
 
@@ -26,6 +26,7 @@ def run_workflow(workflow_obj: models.Workflow, db: Session) -> None:
     if end_node is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Workflow has no End Node")
 
+    # Fetch edges
     nodes_ids = [node.id for node in nodes]
     edges = db.query(models.Edge).filter(
         or_(
@@ -54,10 +55,8 @@ def run_workflow(workflow_obj: models.Workflow, db: Session) -> None:
         G.add_edge(edge.source_node_id, edge.target_node_id)
 
     try:
-        print(start_node.id, end_node.id)
         nodes_path = utils.find_path(G, start_node_id=start_node.id, end_node_id=end_node.id)
     except Exception as err:
-        raise err
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
 
     return nodes_path
@@ -77,7 +76,7 @@ def create_node(node: schemas.NodeInCreate, db: Session) -> models.Node:
     node_obj = models.Node(workflow_id=node.workflow_id, type=node.type)
     db.add(node_obj)
 
-    # Additional database logic depending on provided Node type
+    # Additional logic depending on provided Node type
     if node.type in [models.Node.NodeTypeEnum.start, models.Node.NodeTypeEnum.end]:
         if db.query(models.Node).filter(models.Node.type == node.type).first():
             raise HTTPException(
@@ -112,7 +111,7 @@ def update_node(node_id: int, node_data: schemas.NodeInUpdate, db: Session) -> m
     """
     Updates node based on provided data.
 
-    Validates if node exists and provided data to be updated matches the Node type.
+    Validates if node exists and updates data if possible.
     """
 
     # Check if Node exists
@@ -216,13 +215,3 @@ def create_edge(edge: schemas.EdgeIn, db: Session) -> models.Edge:
     db.commit()
     db.refresh(edge_obj)
     return edge_obj
-
-
-def delete_edge(edge: schemas.EdgeIn, db: Session) -> models.Edge:
-    """
-    Deletes edge between 2 Nodes.
-
-    Validates if workflow exists and if edge can link given nodes based on nodes parameters.
-    """
-    if edge.source_node_id == edge.target_node_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nodes must be 2 different values")

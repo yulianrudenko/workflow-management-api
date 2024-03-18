@@ -9,7 +9,7 @@ def get_object_or_404(Model: models.Base, object_id: int, db: Session) -> models
     Gets an object by ID or raises a 404 if not found.
 
     Args:
-        model: Type of object that needs to be retrieved from database.
+        Model: Type of object that needs to be retrieved from database.
         object_id: ID of the object to retrieve.
         db: Database session.
 

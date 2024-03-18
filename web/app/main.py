@@ -15,6 +15,24 @@ from .db import get_db
 app = FastAPI()
 
 
+@app.get("/api/workflows", status_code=status.HTTP_200_OK, response_model_exclude_none=True)
+def get_all_workflows(db: Session = Depends(get_db)) -> list[schemas.WorkflowOut]:
+    """
+    Retrieve Workflows and their nodes and edges data
+    """
+    workflows = db.query(models.Workflow).limit(20).all()
+    workflows_data = []
+    for workflow in workflows:
+        nodes_ids = [node.id for node in workflow.nodes]
+        workflow.edges = db.query(models.Edge) \
+            .filter(or_(
+                (models.Edge.source_node_id.in_(nodes_ids)),
+                (models.Edge.target_node_id.in_(nodes_ids)),
+            )).all()
+        workflows_data.append(workflow)
+    return workflows_data
+
+
 @app.post("/api/workflows", status_code=status.HTTP_201_CREATED)
 def create_workflow(workflow: schemas.WorkflowIn, db: Session = Depends(get_db)) -> schemas.WorkflowOut:
     """
@@ -30,16 +48,15 @@ def create_workflow(workflow: schemas.WorkflowIn, db: Session = Depends(get_db))
 @app.get("/api/workflows/{workflow_id}", status_code=status.HTTP_200_OK, response_model_exclude_none=True)
 def get_workflow(workflow_id: int, db: Session = Depends(get_db)) -> schemas.WorkflowOut:
     """
-    Retrieve Workflow data and its nodes
+    Retrieve Workflow and its nodes and edges data
     """
     workflow_obj = selectors.get_object_or_404(models.Workflow, object_id=workflow_id, db=db)
-    workflow_obj.nodes = db.query(models.Node).filter(models.Node.workflow_id == workflow_id).all()
     nodes_ids = [node.id for node in workflow_obj.nodes]
-    workflow_obj.edges = db.query(models.Edge)   \
+    workflow_obj.edges = db.query(models.Edge) \
         .filter(or_(
             (models.Edge.source_node_id.in_(nodes_ids)),
             (models.Edge.target_node_id.in_(nodes_ids)),
-        ))
+        )).all()
     return workflow_obj
 
 
@@ -65,7 +82,7 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)) -> schemas.Gra
     }
 
 
-@app.post("/api/nodes", status_code=status.HTTP_201_CREATED)
+@app.post("/api/nodes", status_code=status.HTTP_201_CREATED, response_model_exclude_none=True)
 def create_node(node: schemas.NodeInCreate, db: Session = Depends(get_db)) -> schemas.NodeOut:
     """
     Create Node within provided Workflow

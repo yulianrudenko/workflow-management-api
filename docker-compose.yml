@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  web:
+    container_name: workflow_web
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: workflow_fastapi
+    command: 
+      - /bin/sh
+      - -c
+      - |
+        alembic upgrade head
+        uvicorn --host 0.0.0.0 --port 80 --reload app.main:app
+    volumes:
+      - ./web:/home/web/
+    env_file:
+      - .env
+    ports:
+      - "80:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  db:
+    container_name: workflow_db
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    image: workflow_db
+    volumes:
+      - workflow_db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    environment:
+      - TZ=Europe/Warsaw
+      - POSTGRES_DB=db
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: "no"
+
+
+volumes:
+  workflow_db:
+    name: workflow_db
