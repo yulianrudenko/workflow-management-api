@@ -1,4 +1,4 @@
-# Workflow Management Api
+# Workflow Management API
 
 API service that allows to create and manage Workflows (and its Nodes and Edges).
 

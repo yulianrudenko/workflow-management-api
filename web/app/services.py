@@ -91,7 +91,8 @@ def create_node(node: schemas.NodeInCreate, db: Session) -> models.Node:
             )
         message_obj = models.Message(node=node_obj, status=node.status, text=node.text)
         db.add(message_obj)
-        node_obj.data = {"text": message_obj.text, "status": message_obj.status}
+        node_obj.text = message_obj.text
+        node_obj.status =  message_obj.status
     elif node.type == models.Node.NodeTypeEnum.condition:
         if not node.expression:
             raise HTTPException(
@@ -100,7 +101,7 @@ def create_node(node: schemas.NodeInCreate, db: Session) -> models.Node:
             )
         condition_obj = models.Condition(node=node_obj, expression=node.expression)
         db.add(condition_obj)
-        node_obj.data = {"expression": condition_obj.expression}
+        node_obj.expression = condition_obj.expression
 
     db.commit()
     db.refresh(node_obj)

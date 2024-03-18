@@ -31,7 +31,11 @@ def find_path(G: nx.DiGraph, start_node_id: int, end_node_id: int) -> list[dict[
                 raise ValueError(f"No message found for condition with ID of {neighbor_node_id}")
             rule = rule_engine.Rule(node_data["expression"])
             previous_message_data = G.nodes[previous_message_node_id]
-            if rule.matches(previous_message_data):
+            try:
+                rule_match = rule.matches(previous_message_data)
+            except:
+                raise ValueError(f"Condition with ID of {current_node_id} is invalid, please update the expression.")
+            if rule_match:
                 current_node_id = node_data["yes_node_id"]
             else:
                 current_node_id = node_data["no_node_id"]
